@@ -43,9 +43,26 @@ input[type=radio] { width: 22px; height: 22px; accent-color: var(--pink); flex: 
 :focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
 .field { display: flex; flex-direction: column; gap: 6px; font-weight: 800; width: 100%; text-align: left; }
 
-.card { background: var(--white); border: 3px solid var(--ink); border-radius: var(--radius); box-shadow: 5px 5px 0 var(--ink); padding: 16px; transform: rotate(var(--tilt, 0deg)); display: flex; flex-direction: column; gap: 10px; margin: 0; }
-.card legend { background: var(--mint); border: 3px solid var(--ink); border-radius: 10px; padding: 0 10px; font-weight: 800; }
-.opt-row { display: flex; align-items: center; gap: 10px; }
+.card { background: var(--white); border: 3px solid var(--ink); border-radius: var(--radius); box-shadow: 5px 5px 0 var(--ink); padding: 18px; transform: rotate(var(--tilt, 0deg)); display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.card legend { background: var(--mint); border: 3px solid var(--ink); border-radius: 10px; padding: 2px 10px; font-weight: 800; font-size: 0.95rem; }
+.card-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 2px; }
+.card-actions { display: flex; align-items: center; gap: 8px; }
+.btn-sm {
+  font: inherit; font-size: 0.82rem; font-weight: 800; padding: 5px 10px; border: 2px solid var(--ink);
+  border-radius: 8px; cursor: pointer; background: var(--white); box-shadow: 2px 2px 0 var(--ink);
+  transition: transform .08s, box-shadow .08s;
+}
+.btn-sm:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
+.btn-sm.danger { background: #ffd3dd; }
+.btn-sm.swap { background: var(--lemon); }
+
+.opt-row { display: flex; align-items: center; gap: 10px; border-radius: 10px; padding: 4px; transition: background-color .15s; }
+.opt-row.is-correct { background: rgba(94, 230, 176, 0.25); border: 2px dashed var(--ink); }
+.opt-label { font-size: 0.78rem; font-weight: 800; background: var(--mint); padding: 2px 6px; border: 2px solid var(--ink); border-radius: 6px; white-space: nowrap; }
+
+.action-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 4px 0; }
+.action-bar-left { display: flex; gap: 8px; flex-wrap: wrap; }
+.action-bar-info { font-size: 0.9rem; font-weight: 800; opacity: 0.8; }
 
 .btn, .choice {
   font: inherit; font-weight: 800; font-size: 1.05rem; color: var(--ink); text-decoration: none; text-align: center; cursor: pointer;
