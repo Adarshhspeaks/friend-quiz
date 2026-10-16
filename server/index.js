@@ -182,11 +182,91 @@ app.delete('/api/quizzes/:id/responses', (req, res) => {
   res.json({ success: true });
 });
 
-// serve built React app in production
+// serve built React app with dynamic Open Graph meta tags
 const dist = path.join(__dirname, '../client/dist');
+const distHtml = path.join(dist, 'index.html');
+
+function getBaseUrl(req) {
+  const host = req.get('x-forwarded-host') || req.get('host');
+  const proto = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+  return `${proto}://${host}`;
+}
+
+function injectMeta(html, { title, description, url, imageUrl }) {
+  let out = html;
+  if (title) {
+    out = out.replace(/<title>.*?<\/title>/i, `<title>${title}</title>`);
+    out = out.replace(/(<meta\s+property=["']og:title["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${title}$2`);
+    out = out.replace(/(<meta\s+name=["']twitter:title["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${title}$2`);
+  }
+  if (description) {
+    out = out.replace(/(<meta\s+name=["']description["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${description}$2`);
+    out = out.replace(/(<meta\s+property=["']og:description["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${description}$2`);
+    out = out.replace(/(<meta\s+name=["']twitter:description["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${description}$2`);
+  }
+  if (imageUrl) {
+    out = out.replace(/(<meta\s+property=["']og:image["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${imageUrl}$2`);
+    out = out.replace(/(<meta\s+name=["']twitter:image["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${imageUrl}$2`);
+  }
+  if (url) {
+    out = out.replace(/(<meta\s+property=["']og:url["']\s+content=["']).*?(["']\s*\/?>)/i, `$1${url}$2`);
+  }
+  return out;
+}
+
 if (fs.existsSync(dist)) {
   app.use(express.static(dist));
-  app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+
+  // Dynamic preview for quiz play page /q/:id
+  app.get('/q/:id', (req, res) => {
+    try {
+      const template = fs.readFileSync(distHtml, 'utf8');
+      const row = q.getQuiz.get(req.params.id);
+      const baseUrl = getBaseUrl(req);
+      const imageUrl = `${baseUrl}/og-image.jpg`;
+
+      if (row) {
+        const title = `How well do you know ${row.owner_name}? — Trust Me? Quiz`;
+        const description = `${row.owner_name} created a friendship quiz! Answer 10 questions to see if you are a Real Bestie 👑 or a Fake Friend 🚨. No Googling allowed!`;
+        const url = `${baseUrl}/q/${row.id}`;
+        return res.send(injectMeta(template, { title, description, url, imageUrl }));
+      }
+      return res.send(injectMeta(template, { imageUrl }));
+    } catch {
+      return res.sendFile(distHtml);
+    }
+  });
+
+  // Dynamic preview for leaderboard page /results/:id
+  app.get('/results/:id', (req, res) => {
+    try {
+      const template = fs.readFileSync(distHtml, 'utf8');
+      const row = q.getQuiz.get(req.params.id);
+      const baseUrl = getBaseUrl(req);
+      const imageUrl = `${baseUrl}/og-image.jpg`;
+
+      if (row) {
+        const title = `${row.owner_name}'s Friendship Leaderboard 🏆 — Trust Me?`;
+        const description = `See who knows ${row.owner_name} best! Check live scores, rankings, and who got exposed on the leaderboard.`;
+        const url = `${baseUrl}/results/${row.id}`;
+        return res.send(injectMeta(template, { title, description, url, imageUrl }));
+      }
+      return res.send(injectMeta(template, { imageUrl }));
+    } catch {
+      return res.sendFile(distHtml);
+    }
+  });
+
+  app.get('*', (req, res) => {
+    try {
+      const template = fs.readFileSync(distHtml, 'utf8');
+      const baseUrl = getBaseUrl(req);
+      const imageUrl = `${baseUrl}/og-image.jpg`;
+      res.send(injectMeta(template, { url: `${baseUrl}${req.url}`, imageUrl }));
+    } catch {
+      res.sendFile(distHtml);
+    }
+  });
 }
 
 app.listen(PORT, () => console.log(`API on http://localhost:${PORT}`));
