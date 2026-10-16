@@ -45,8 +45,9 @@ const q = {
   getQuiz: db.prepare('SELECT * FROM quizzes WHERE id = ?'),
   insertResp: db.prepare('INSERT INTO responses VALUES (?, ?, ?, ?, ?, ?)'),
   getResps: db.prepare(
-    'SELECT player_name, score, created_at FROM responses WHERE quiz_id = ? ORDER BY score DESC, created_at ASC'
+    'SELECT id, player_name, score, created_at FROM responses WHERE quiz_id = ? ORDER BY score DESC, created_at ASC'
   ),
+  deleteResp: db.prepare('DELETE FROM responses WHERE id = ? AND quiz_id = ?'),
 };
 
 // ---------- helpers ----------
@@ -110,8 +111,19 @@ app.get('/api/quizzes/:id/results', (req, res) => {
   const row = q.getQuiz.get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Quiz not found.' });
   const total = JSON.parse(row.questions).length;
-  const players = q.getResps.all(row.id).map((r) => ({ name: r.player_name, score: r.score, at: r.created_at }));
+  const players = q.getResps.all(row.id).map((r) => ({
+    id: r.id,
+    name: r.player_name,
+    score: r.score,
+    at: r.created_at,
+  }));
   res.json({ ownerName: row.owner_name, total, players });
+});
+
+// delete an individual response (moderation)
+app.delete('/api/quizzes/:id/responses/:respId', (req, res) => {
+  q.deleteResp.run(req.params.respId, req.params.id);
+  res.json({ success: true });
 });
 
 // serve built React app in production

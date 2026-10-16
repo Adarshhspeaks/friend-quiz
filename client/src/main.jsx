@@ -1,18 +1,35 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Home from './pages/Home.jsx';
 import Create from './pages/Create.jsx';
 import Play from './pages/Play.jsx';
 import Results from './pages/Results.jsx';
 import './styles.css';
 
+function Header() {
+  const location = useLocation();
+  const isCreate = location.pathname === '/create';
+
+  return (
+    <header className="top">
+      <Link to="/" className="logo">
+        <span>✨</span>
+        <span>Trust Me?</span>
+      </Link>
+      {!isCreate && (
+        <Link to="/create" className="btn-sm swap" style={{ textDecoration: 'none' }}>
+          ✏️ Make a Quiz
+        </Link>
+      )}
+    </header>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <header className="top">
-        <Link to="/" className="logo">trust me?</Link>
-      </header>
+      <Header />
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
