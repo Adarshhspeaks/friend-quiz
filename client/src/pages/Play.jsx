@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import confetti from 'canvas-confetti';
 import { getQuiz, submitAnswers, titleFor } from '../api.js';
+import { playPop, playSuccess, playFail } from '../utils/sound.js';
+import { downloadStoryCard } from '../utils/storyCard.js';
 
 export default function Play() {
   const { id } = useParams();
@@ -14,6 +17,7 @@ export default function Play() {
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [generatingCard, setGeneratingCard] = useState(false);
 
   useEffect(() => {
     getQuiz(id)
@@ -62,7 +66,10 @@ export default function Play() {
         className="stack center"
         onSubmit={(e) => {
           e.preventDefault();
-          if (name.trim()) setStarted(true);
+          if (name.trim()) {
+            playPop();
+            setStarted(true);
+          }
         }}
         style={{ gap: '20px' }}
       >
@@ -114,15 +121,35 @@ export default function Play() {
     const resultText = `I scored ${result.score}/${result.total} on ${quiz.ownerName}'s quiz! Verdict: ${verdict.status} ${verdict.emoji}. Can you beat my score? ${location.origin}/q/${id}`;
 
     async function copyScore() {
+      playPop();
       await navigator.clipboard.writeText(resultText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
 
+    async function handleDownloadCard() {
+      playPop();
+      setGeneratingCard(true);
+      try {
+        await downloadStoryCard({
+          ownerName: quiz.ownerName,
+          playerName: name,
+          score: result.score,
+          total: result.total,
+          verdict,
+          link: `${location.origin}/q/${id}`,
+        });
+      } catch (err) {
+        console.error('Failed to create story card:', err);
+      } finally {
+        setGeneratingCard(false);
+      }
+    }
+
     return (
       <section className="stack center" style={{ gap: '22px' }}>
         {/* Verdict Scorecard */}
-        <div className="scorecard">
+        <div className={`scorecard ${verdict.pct < 40 ? 'wobble' : ''}`}>
           <div className="tape-accent" />
           <div className="emoji">{verdict.emoji}</div>
           <div className={`verdict-tag ${verdict.color}`}>
@@ -147,15 +174,19 @@ export default function Play() {
             {verdict.desc}
           </p>
 
-          {/* Social Share Buttons */}
+          {/* Social Share & Story Card Buttons */}
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', width: '100%', marginTop: '6px' }}>
+            <button className="btn lavender" onClick={handleDownloadCard} disabled={generatingCard}>
+              {generatingCard ? '🎨 Generating Card...' : '📸 Save Story Card'}
+            </button>
             <a
               className="btn mint"
               href={`https://wa.me/?text=${encodeURIComponent(resultText)}`}
               target="_blank"
               rel="noreferrer"
+              onClick={() => playPop()}
             >
-              💬 Share Score on WhatsApp
+              💬 Share on WhatsApp
             </a>
             <button className="btn lemon" onClick={copyScore}>
               {copied ? '✓ Result Copied!' : '📋 Copy Score'}
@@ -194,10 +225,10 @@ export default function Play() {
 
         {/* Navigation CTAs */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
-          <Link className="btn lavender" to={`/results/${id}`}>
+          <Link className="btn lavender" to={`/results/${id}`} onClick={() => playPop()}>
             🏆 View Full Leaderboard
           </Link>
-          <Link className="btn white" to="/create">
+          <Link className="btn white" to="/create" onClick={() => playPop()}>
             ✨ Make Your Own Quiz
           </Link>
         </div>
@@ -211,6 +242,7 @@ export default function Play() {
 
   async function pickOption(k) {
     if (submitting) return;
+    playPop();
     const nextAnswers = [...answers, k];
     setAnswers(nextAnswers);
 
@@ -226,6 +258,21 @@ export default function Play() {
             JSON.stringify({ name: name.trim(), score: res.score, total: res.total, at: Date.now() })
           );
         } catch {}
+
+        // Audio & Confetti Feedback
+        const ratio = res.score / res.total;
+        if (ratio >= 0.7) {
+          playSuccess();
+          confetti({
+            particleCount: ratio === 1 ? 120 : 70,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: ['#FFE66D', '#FF6584', '#4ECCA3', '#C4B5FD', '#FFFFFF'],
+          });
+        } else {
+          playFail();
+        }
+
         setResult(res);
       } catch (e) {
         setError(e.message);

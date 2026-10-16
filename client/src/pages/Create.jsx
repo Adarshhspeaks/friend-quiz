@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import confetti from 'canvas-confetti';
 import { createQuiz } from '../api.js';
 import { CATEGORIES, QUESTION_BANK, DEFAULT_10_QUESTIONS } from '../data/questions.js';
+import { playSuccess, playPop } from '../utils/sound.js';
 
 const blank = () => ({
   text: '',
@@ -114,6 +116,13 @@ export default function Create() {
       if (adminKey) {
         try { localStorage.setItem(`quiz_admin_${id}`, adminKey); } catch {}
       }
+      playSuccess();
+      confetti({
+        particleCount: 100,
+        spread: 75,
+        origin: { y: 0.6 },
+        colors: ['#FFE66D', '#FF6584', '#4ECCA3', '#C4B5FD', '#FFFFFF'],
+      });
       setQuizId(id);
     } catch (err) {
       setError(err.message);

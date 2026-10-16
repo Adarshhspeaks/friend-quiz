@@ -655,10 +655,31 @@ input[type=radio] {
 }
 
 /* Animations */
-@keyframes pop {
-  0% { transform: scale(0) rotate(-20deg); }
-  70% { transform: scale(1.15) rotate(5deg); }
-  100% { transform: scale(1) rotate(0deg); }
+@keyframes wobble {
+  0%, 100% { transform: translateX(0); }
+  15%, 45%, 75% { transform: translateX(-8px) rotate(-1.5deg); }
+  30%, 60%, 90% { transform: translateX(8px) rotate(1.5deg); }
+}
+
+.wobble {
+  animation: wobble 0.65s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+.sound-toggle {
+  font-size: 1.15rem;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+  transition: transform 0.1s;
+}
+.sound-toggle:hover {
+  transform: scale(1.08);
 }
 
 @keyframes floatSlow {
