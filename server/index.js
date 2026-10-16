@@ -22,12 +22,14 @@ if (typeof db.pragma === 'function') {
 } else {
   db.exec('PRAGMA journal_mode = WAL;');
 }
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS quizzes (
     id TEXT PRIMARY KEY,
     owner_name TEXT NOT NULL,
     questions TEXT NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    admin_key TEXT
   );
   CREATE TABLE IF NOT EXISTS responses (
     id TEXT PRIMARY KEY,
@@ -40,14 +42,32 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_resp_quiz ON responses(quiz_id);
 `);
 
+// Ensure admin_key column exists for existing DBs
+try {
+  db.exec('ALTER TABLE quizzes ADD COLUMN admin_key TEXT;');
+} catch {
+  // Column already exists
+}
+
 const q = {
-  insertQuiz: db.prepare('INSERT INTO quizzes VALUES (?, ?, ?, ?)'),
+  insertQuiz: db.prepare(
+    'INSERT INTO quizzes (id, owner_name, questions, created_at, admin_key) VALUES (?, ?, ?, ?, ?)'
+  ),
   getQuiz: db.prepare('SELECT * FROM quizzes WHERE id = ?'),
-  insertResp: db.prepare('INSERT INTO responses VALUES (?, ?, ?, ?, ?, ?)'),
+  findRespByName: db.prepare(
+    'SELECT id, player_name FROM responses WHERE quiz_id = ? AND LOWER(player_name) = LOWER(?)'
+  ),
+  updateResp: db.prepare(
+    'UPDATE responses SET answers = ?, score = ?, created_at = ? WHERE id = ?'
+  ),
+  insertResp: db.prepare(
+    'INSERT INTO responses (id, quiz_id, player_name, answers, score, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ),
   getResps: db.prepare(
     'SELECT id, player_name, score, created_at FROM responses WHERE quiz_id = ? ORDER BY score DESC, created_at ASC'
   ),
   deleteResp: db.prepare('DELETE FROM responses WHERE id = ? AND quiz_id = ?'),
+  clearResps: db.prepare('DELETE FROM responses WHERE quiz_id = ?'),
 };
 
 // ---------- helpers ----------
@@ -79,8 +99,9 @@ app.post('/api/quizzes', (req, res) => {
   const questions = validateQuestions(req.body.questions);
   if (!ownerName || !questions) return res.status(400).json({ error: 'Add your name and at least 1 valid question.' });
   const id = nanoid(7);
-  q.insertQuiz.run(id, ownerName, JSON.stringify(questions), Date.now());
-  res.json({ id });
+  const adminKey = nanoid(16);
+  q.insertQuiz.run(id, ownerName, JSON.stringify(questions), Date.now(), adminKey);
+  res.json({ id, adminKey });
 });
 
 // fetch quiz for playing (answers are NOT sent)
@@ -91,7 +112,7 @@ app.get('/api/quizzes/:id', (req, res) => {
   res.json({ id: row.id, ownerName: row.owner_name, questions });
 });
 
-// submit answers -> scored on the server
+// submit answers -> scored on the server (with duplicate update prevention)
 app.post('/api/quizzes/:id/responses', (req, res) => {
   const row = q.getQuiz.get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Quiz not found.' });
@@ -102,8 +123,21 @@ app.post('/api/quizzes/:id/responses', (req, res) => {
     return res.status(400).json({ error: 'Enter your name and answer every question.' });
 
   const score = questions.reduce((n, qn, i) => n + (Number(answers[i]) === qn.correctIndex ? 1 : 0), 0);
-  q.insertResp.run(nanoid(10), row.id, playerName, JSON.stringify(answers), score, Date.now());
-  res.json({ score, total: questions.length, correct: questions.map((qn) => qn.correctIndex) });
+
+  // Check if player already submitted to avoid polluting leaderboard
+  const existing = q.findRespByName.get(row.id, playerName);
+  if (existing) {
+    q.updateResp.run(JSON.stringify(answers), score, Date.now(), existing.id);
+  } else {
+    q.insertResp.run(nanoid(10), row.id, playerName, JSON.stringify(answers), score, Date.now());
+  }
+
+  res.json({
+    score,
+    total: questions.length,
+    correct: questions.map((qn) => qn.correctIndex),
+    isRetake: !!existing,
+  });
 });
 
 // leaderboard
@@ -120,9 +154,31 @@ app.get('/api/quizzes/:id/results', (req, res) => {
   res.json({ ownerName: row.owner_name, total, players });
 });
 
-// delete an individual response (moderation)
+// delete an individual response (creator moderation only)
 app.delete('/api/quizzes/:id/responses/:respId', (req, res) => {
-  q.deleteResp.run(req.params.respId, req.params.id);
+  const row = q.getQuiz.get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Quiz not found.' });
+
+  const adminKey = req.headers['x-admin-key'] || req.query.adminKey;
+  if (!row.admin_key || adminKey !== row.admin_key) {
+    return res.status(403).json({ error: 'Unauthorized: Only the quiz creator can delete responses.' });
+  }
+
+  q.deleteResp.run(req.params.respId, row.id);
+  res.json({ success: true });
+});
+
+// clear all responses (creator moderation only)
+app.delete('/api/quizzes/:id/responses', (req, res) => {
+  const row = q.getQuiz.get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Quiz not found.' });
+
+  const adminKey = req.headers['x-admin-key'] || req.query.adminKey;
+  if (!row.admin_key || adminKey !== row.admin_key) {
+    return res.status(403).json({ error: 'Unauthorized: Only the quiz creator can clear responses.' });
+  }
+
+  q.clearResps.run(row.id);
   res.json({ success: true });
 });
 

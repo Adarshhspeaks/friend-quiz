@@ -1,7 +1,11 @@
-async function call(url, options) {
+async function call(url, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Something went wrong. Try again.');
@@ -13,8 +17,16 @@ export const getQuiz = (id) => call(`/api/quizzes/${id}`);
 export const submitAnswers = (id, body) =>
   call(`/api/quizzes/${id}/responses`, { method: 'POST', body: JSON.stringify(body) });
 export const getResults = (id) => call(`/api/quizzes/${id}/results`);
-export const deleteResponse = (id, respId) =>
-  call(`/api/quizzes/${id}/responses/${respId}`, { method: 'DELETE' });
+export const deleteResponse = (id, respId, adminKey) =>
+  call(`/api/quizzes/${id}/responses/${respId}`, {
+    method: 'DELETE',
+    headers: adminKey ? { 'x-admin-key': adminKey } : {},
+  });
+export const clearResponses = (id, adminKey) =>
+  call(`/api/quizzes/${id}/responses`, {
+    method: 'DELETE',
+    headers: adminKey ? { 'x-admin-key': adminKey } : {},
+  });
 
 // Playful verdicts based on score ratio (reference-inspired)
 export function titleFor(score, total) {

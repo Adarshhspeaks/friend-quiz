@@ -7,6 +7,7 @@ export default function Play() {
   const [quiz, setQuiz] = useState(null);
   const [error, setError] = useState('');
   const [name, setName] = useState('');
+  const [previousPlay, setPreviousPlay] = useState(null);
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState([]);
@@ -15,7 +16,19 @@ export default function Play() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    getQuiz(id).then(setQuiz).catch((e) => setError(e.message));
+    getQuiz(id)
+      .then((q) => {
+        setQuiz(q);
+        try {
+          const stored = localStorage.getItem(`played_${id}`);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            setPreviousPlay(parsed);
+            if (parsed.name) setName(parsed.name);
+          }
+        } catch {}
+      })
+      .catch((e) => setError(e.message));
   }, [id]);
 
   if (error) {
@@ -68,6 +81,13 @@ export default function Play() {
             {quiz.questions.length} questions. See if you are a <strong>True Bestie 👑</strong> or get caught as a <strong>Fake Friend 🚨</strong>!
           </p>
 
+          {previousPlay && (
+            <div className="doodle-badge" style={{ background: 'var(--lemon-light)', fontSize: '0.84rem' }}>
+              <span>🔄</span>
+              <span>Previous score: {previousPlay.score}/{previousPlay.total} • Retaking updates your rank!</span>
+            </div>
+          )}
+
           <label className="field">
             Enter your name / nickname:
             <input
@@ -81,7 +101,7 @@ export default function Play() {
           </label>
 
           <button className="btn pink" style={{ width: '100%', fontSize: '1.15rem' }}>
-            🚀 Start Quiz Now
+            {previousPlay ? '🔄 Retake Quiz' : '🚀 Start Quiz Now'}
           </button>
         </div>
       </form>
@@ -116,6 +136,12 @@ export default function Play() {
           <div className="score-pill">
             {name}: {result.score} / {result.total} ({verdict.pct}%)
           </div>
+
+          {result.isRetake && (
+            <span className="doodle-badge" style={{ background: 'var(--mint-light)', fontSize: '0.82rem' }}>
+              ✓ Leaderboard rank updated!
+            </span>
+          )}
 
           <p className="lead" style={{ maxWidth: '420px', color: '#444' }}>
             {verdict.desc}
@@ -194,6 +220,12 @@ export default function Play() {
       setSubmitting(true);
       try {
         const res = await submitAnswers(id, { playerName: name, answers: nextAnswers });
+        try {
+          localStorage.setItem(
+            `played_${id}`,
+            JSON.stringify({ name: name.trim(), score: res.score, total: res.total, at: Date.now() })
+          );
+        } catch {}
         setResult(res);
       } catch (e) {
         setError(e.message);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getResults, titleFor, deleteResponse } from '../api.js';
+import { getResults, titleFor, deleteResponse, clearResponses } from '../api.js';
 
 export default function Results() {
   const { id } = useParams();
@@ -8,6 +8,17 @@ export default function Results() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [clearing, setClearing] = useState(false);
+
+  // Check if current device is the creator of this quiz
+  const adminKey = (() => {
+    try {
+      return localStorage.getItem(`quiz_admin_${id}`);
+    } catch {
+      return null;
+    }
+  })();
+  const isCreator = Boolean(adminKey);
 
   useEffect(() => {
     loadResults();
@@ -21,15 +32,31 @@ export default function Results() {
     if (!confirm('Remove this entry from the leaderboard?')) return;
     setDeletingId(respId);
     try {
-      await deleteResponse(id, respId);
+      await deleteResponse(id, respId, adminKey);
       setData((prev) => ({
         ...prev,
         players: prev.players.filter((p) => p.id !== respId),
       }));
     } catch (err) {
-      alert(err.message || 'Failed to delete');
+      alert(err.message || 'Failed to delete response.');
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleClearAll() {
+    if (!confirm('Are you sure you want to delete ALL responses and reset the leaderboard?')) return;
+    setClearing(true);
+    try {
+      await clearResponses(id, adminKey);
+      setData((prev) => ({
+        ...prev,
+        players: [],
+      }));
+    } catch (err) {
+      alert(err.message || 'Failed to clear leaderboard.');
+    } finally {
+      setClearing(false);
     }
   }
 
@@ -80,6 +107,23 @@ export default function Results() {
         <p className="lead">
           Ranked from <strong>Certified Besties</strong> to the <strong>Fake Friends</strong>!
         </p>
+
+        {/* Creator Management Notice */}
+        {isCreator && (
+          <div
+            className="doodle-badge"
+            style={{
+              background: 'var(--lemon-light)',
+              border: '2px solid var(--ink)',
+              alignSelf: 'flex-start',
+              fontSize: '0.86rem',
+              padding: '6px 14px',
+            }}
+          >
+            <span>👑</span>
+            <span>You are the Quiz Creator (Moderator Access Active)</span>
+          </div>
+        )}
       </div>
 
       {/* Share / Invite Banner */}
@@ -124,51 +168,70 @@ export default function Results() {
         </div>
       ) : (
         /* Leaderboard List */
-        <ol className="board">
-          {data.players.map((p, i) => {
-            const verdict = titleFor(p.score, data.total);
-            const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
-            const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+        <div className="stack" style={{ gap: '10px' }}>
+          <ol className="board">
+            {data.players.map((p, i) => {
+              const verdict = titleFor(p.score, data.total);
+              const rankEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+              const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
 
-            return (
-              <li key={p.id || i} className="board-card">
-                <div className="board-left">
-                  <span className={`rank-badge ${rankClass}`}>{rankEmoji}</span>
-                  <div className="player-info">
-                    <span className="player-name">{p.name}</span>
-                    <span className="player-status">
-                      <span className={`verdict-tag ${verdict.color}`} style={{ fontSize: '0.74rem', padding: '1px 6px', marginRight: '6px' }}>
-                        {verdict.badge}
+              return (
+                <li key={p.id || i} className="board-card">
+                  <div className="board-left">
+                    <span className={`rank-badge ${rankClass}`}>{rankEmoji}</span>
+                    <div className="player-info">
+                      <span className="player-name">{p.name}</span>
+                      <span className="player-status">
+                        <span className={`verdict-tag ${verdict.color}`} style={{ fontSize: '0.74rem', padding: '1px 6px', marginRight: '6px' }}>
+                          {verdict.badge}
+                        </span>
+                        {verdict.emoji} {verdict.text}
                       </span>
-                      {verdict.emoji} {verdict.text}
-                    </span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="board-right">
-                  <div className="player-score">
-                    {p.score}/{data.total}
-                    <small style={{ fontSize: '0.78rem', display: 'block', opacity: 0.7, textAlign: 'right' }}>
-                      {verdict.pct}%
-                    </small>
+                  <div className="board-right">
+                    <div className="player-score">
+                      {p.score}/{data.total}
+                      <small style={{ fontSize: '0.78rem', display: 'block', opacity: 0.7, textAlign: 'right' }}>
+                        {verdict.pct}%
+                      </small>
+                    </div>
+
+                    {/* Delete button only shown to quiz creator */}
+                    {isCreator && p.id && (
+                      <button
+                        type="button"
+                        className="btn-sm danger"
+                        onClick={() => handleDelete(p.id)}
+                        disabled={deletingId === p.id}
+                        title="Delete this entry (Creator only)"
+                        style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
-                  {p.id && (
-                    <button
-                      type="button"
-                      className="btn-sm danger"
-                      onClick={() => handleDelete(p.id)}
-                      disabled={deletingId === p.id}
-                      title="Remove from leaderboard"
-                      style={{ padding: '3px 8px', fontSize: '0.75rem' }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+                </li>
+              );
+            })}
+          </ol>
+
+          {/* Clear all entries button for creator */}
+          {isCreator && data.players.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <button
+                type="button"
+                className="btn-sm danger"
+                onClick={handleClearAll}
+                disabled={clearing}
+                style={{ fontSize: '0.78rem' }}
+              >
+                🗑️ Reset Entire Leaderboard
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Footer Navigation */}

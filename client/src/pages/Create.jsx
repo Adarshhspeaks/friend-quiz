@@ -110,7 +110,10 @@ export default function Create() {
 
     setBusy(true);
     try {
-      const { id } = await createQuiz({ ownerName: trimmedName, questions: cleaned });
+      const { id, adminKey } = await createQuiz({ ownerName: trimmedName, questions: cleaned });
+      if (adminKey) {
+        try { localStorage.setItem(`quiz_admin_${id}`, adminKey); } catch {}
+      }
       setQuizId(id);
     } catch (err) {
       setError(err.message);
