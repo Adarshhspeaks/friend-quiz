@@ -16,7 +16,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 
 // ---------- DB ----------
-const db = new DatabaseSync(process.env.DB_PATH || path.join(__dirname, 'quiz.db'));
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'quiz.db');
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+const db = new DatabaseSync(dbPath);
 if (typeof db.pragma === 'function') {
   db.pragma('journal_mode = WAL');
 } else {
