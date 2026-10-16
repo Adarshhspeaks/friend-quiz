@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { createQuiz } from '../api.js';
 import { CATEGORIES, QUESTION_BANK, DEFAULT_10_QUESTIONS } from '../data/questions.js';
 
@@ -19,7 +19,8 @@ const cloneQuestions = (list) =>
   }));
 
 export default function Create() {
-  const [ownerName, setOwnerName] = useState('');
+  const [searchParams] = useSearchParams();
+  const [ownerName, setOwnerName] = useState(() => searchParams.get('name') || '');
   const [questions, setQuestions] = useState(() => cloneQuestions(DEFAULT_10_QUESTIONS));
   const [activeCategory, setActiveCategory] = useState('all');
   const [showBankModalFor, setShowBankModalFor] = useState(null); // index of question being swapped
